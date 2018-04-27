@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 import demjson
 from scrapy.utils.misc import load_object
 from scrapy.utils.serialize import ScrapyJSONEncoder
@@ -10,6 +11,8 @@ from twisted.web.error import Error, UnsupportedMethod
 from . import log
 from .conf import settings
 from .utils import extract_scrapy_request_args, to_bytes
+from jsonschema import validate
+from .requestschema import schema
 
 
 # XXX super() calls won't work wihout object mixin in Python 2
@@ -78,11 +81,17 @@ class ServiceResource(resource.Resource, object):
         # Python exceptions don't have message attribute in Python 3+ anymore.
         # Twisted HTTP Error objects still have 'message' attribute even in 3+
         # and they fail on str(exception) call.
+        request_body = request.content.getvalue()
+        api_params = demjson.decode(request_body)
         msg = exception.message if hasattr(exception, 'message') else str(exception)
+        if request.code == 500:
+            msg = 'Internal error'
         return {
-            "status": "error",
-            "message": msg,
-            "code": request.code
+            "status": {
+                "message": msg,
+                "code": request.code
+            },
+            "data": api_params
         }
 
     def render_object(self, obj, request):
@@ -151,6 +160,11 @@ class CrawlResource(ServiceResource):
             raise Error('400', message=message)
 
         log.msg("{}".format(api_params))
+
+        self.valid_aftership_courier_api_params(api_params)
+        self.slug = api_params.get('slug')
+        api_params = self.wrap_aftership_courier_api(api_params)
+
         if api_params.get("start_requests"):
             # start requests passed so 'request' argument is optional
             _request = api_params.get("request", {})
@@ -166,6 +180,28 @@ class CrawlResource(ServiceResource):
 
         self.validate_options(scrapy_request_args, api_params)
         return self.prepare_crawl(api_params, scrapy_request_args, **kwargs)
+
+    def valid_aftership_courier_api_params(self, api_params):
+        try:
+            validate(api_params, schema)
+        except Exception as e:
+            print(str(e))
+            raise Error('400', "Ivalid JSON")
+
+    def wrap_aftership_courier_api(self, api_params):
+        spider_name = api_params.get('slug') + 'spider'
+        print('spider_name: {}'.format(spider_name))
+        start_requests = True
+        request = {
+            'meta': copy.deepcopy(api_params),
+            'dont_filter': True
+        }
+        aftership_api_params = {
+            'request': request,
+            'start_requests': start_requests,
+            'spider_name': spider_name
+        }
+        return aftership_api_params
 
     def validate_options(self, scrapy_request_args, api_params):
         url = scrapy_request_args.get("url")
@@ -223,18 +259,23 @@ class CrawlResource(ServiceResource):
                   max_requests=None, start_requests=False, *args, **kwargs):
         crawl_manager_cls = load_object(settings.CRAWL_MANAGER)
         manager = crawl_manager_cls(spider_name, scrapy_request_args, max_requests, start_requests=start_requests)
+        kwargs.update(scrapy_request_args.get('meta'))
         dfd = manager.crawl(*args, **kwargs)
         return dfd
 
     def prepare_response(self, result, *args, **kwargs):
         items = result.get("items")
         response = {
-            "status": "ok",
-            "items": items,
-            "items_dropped": result.get("items_dropped", []),
-            "stats": result.get("stats"),
-            "spider_name": result.get("spider_name"),
+            "status": {
+                "message": "OK",
+                "code": 200
+            },
+            "slug": self.slug,
+            "data": {
+                "trackings": items
+            }
         }
+
         errors = result.get("errors")
         if errors:
             response["errors"] = errors
