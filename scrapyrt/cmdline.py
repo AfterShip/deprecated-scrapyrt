@@ -5,6 +5,8 @@ from six.moves.configparser import (
 import argparse
 import os
 import sys
+import json
+import demjson
 
 from scrapy.utils.conf import closest_scrapy_cfg
 from scrapy.utils.misc import load_object
@@ -13,9 +15,93 @@ from twisted.application.internet import TCPServer
 from twisted.application.service import Application
 from twisted.internet import reactor
 from twisted.web.server import Site
+from twisted.web import resource
 
 from .log import setup_logging
 from .conf import settings
+from .utils import to_bytes
+
+from twisted.python.compat import intToBytes
+from twisted.web.server import Request
+
+
+class AfterShipErrorPage(resource.Resource):
+    def __init__(self, status, brief, detail):
+        resource.Resource.__init__(self)
+        self.code = status
+        self.brief = brief
+        self.detail = detail
+
+    def render(self, request):
+        request.setResponseCode(self.code)
+        request_body = request.content.getvalue()
+        api_params = demjson.decode(request_body)
+
+        result = {
+            "status": {
+                "message": self.brief,
+                "code": self.code
+            },
+            "data": api_params
+        }
+        return to_bytes(json.dumps(result))
+
+    def getChild(self, chnam, request):
+        return self
+
+
+class AfterShipNoResource(AfterShipErrorPage):
+    def __init__(self, message="Not Found"):
+        AfterShipErrorPage.__init__(self, 404, "Not Found", "Not Found Not Found")
+
+
+def processingFailed(self, reason):
+        """
+        Finish this request with an indication that processing failed and
+        possibly display a traceback.
+        @param reason: Reason this request has failed.
+        @type reason: L{twisted.python.failure.Failure}
+        @return: The reason passed to this method.
+        @rtype: L{twisted.python.failure.Failure}
+        """
+        if self.site.displayTracebacks:
+            result = {
+                'status': {
+                    "message": "Internal Error",
+                    "code": 500
+                },
+                'data': {
+                    "meta": {
+                        'message': str(reason),
+                        'code': 500
+                    }
+                }
+            }
+        else:
+            result = {
+                'status': {
+                    "message": "Internal Error",
+                    "code": 500
+                },
+                'data': {
+                    "meta": {
+                        'message': 'Processing Failed',
+                        'code': 500
+                    }
+                }
+            }
+        body = to_bytes(json.dumps(result))
+        self.setResponseCode(500)
+        self.setHeader(b'content-type', b"text/html")
+        self.setHeader(b'content-length', intToBytes(len(body)))
+        self.write(body)
+        self.finish()
+        return reason
+
+
+Request.processingFailed = processingFailed
+resource.ErrorPage = AfterShipErrorPage
+resource.NoResource = AfterShipNoResource
 
 
 def parse_arguments():
