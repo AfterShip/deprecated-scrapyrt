@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
-import json
 import copy
+
 import demjson
 from scrapy.utils.misc import load_object
 from scrapy.utils.serialize import ScrapyJSONEncoder
@@ -13,11 +13,18 @@ from twisted.web.error import Error, UnsupportedMethod
 from . import log
 from .conf import settings
 from .utils import extract_scrapy_request_args, to_bytes
-from jsonschema import validate
 
-requestschema_path = os.getenv('REQUESTSCHEMA_PATH', "../settings/schemas/request_schema.json")
-with open(requestschema_path) as f:
-    schema = json.load(f)
+from jsonschema import validate
+from jsonschema.exceptions import ValidationError
+
+
+REQUEST_SCHEMA = None
+request_schema_file = os.getenv('REQUEST_SCHEMA_FILE',
+                               "../settings/schemas/request_schema.json")
+
+if os.path.isfile(request_schema_file):
+    with open(request_schema_file) as f:
+        REQUEST_SCHEMA = demjson.decode(f.read())
 
 
 # XXX super() calls won't work wihout object mixin in Python 2
@@ -75,6 +82,8 @@ class ServiceResource(resource.Resource, object):
                 request.setResponseCode(405)
             elif isinstance(exception, Error):
                 code = int(exception.status)
+                if code == 4001:
+                    code = 400
                 request.setResponseCode(code)
             else:
                 request.setResponseCode(500)
@@ -87,14 +96,20 @@ class ServiceResource(resource.Resource, object):
         # Twisted HTTP Error objects still have 'message' attribute even in 3+
         # and they fail on str(exception) call.
         request_body = request.content.getvalue()
-        api_params = demjson.decode(request_body)
-        msg = exception.message if hasattr(exception, 'message') else str(exception)
+        try:
+            api_params = demjson.decode(request_body)
+        except demjson.JSONDecodeError:
+            api_params = {}
+        if hasattr(exception, 'message'):
+            msg = exception.message
+        else:
+            msg = str(exception)
         if request.code == 500:
             msg = 'Internal error'
         return {
             "meta": {
                 "message": msg,
-                "code": request.code
+                "code": int(exception.status)
             },
             "data": api_params
         }
@@ -159,10 +174,8 @@ class CrawlResource(ServiceResource):
         request_body = request.content.getvalue()
         try:
             api_params = demjson.decode(request_body)
-        except demjson.JSONDecodeError as e:
-            message = "Invalid JSON in POST body. {}"
-            message = message.format(e.pretty_description())
-            raise Error('400', message=message)
+        except demjson.JSONDecodeError:
+            raise Error('400', message='Invalid JSON')
 
         log.msg("{}".format(api_params))
 
@@ -188,14 +201,13 @@ class CrawlResource(ServiceResource):
 
     def valid_aftership_courier_api_params(self, api_params):
         try:
-            validate(api_params, schema)
-        except Exception as e:
-            print(str(e))
-            raise Error('400', "Ivalid JSON")
+            validate(api_params, REQUEST_SCHEMA)
+        except ValidationError:
+            raise Error('4001', "Invalid payload")
 
     def wrap_aftership_courier_api(self, api_params):
         spider_name = api_params.get('slug') + 'spider'
-        print('spider_name: {}'.format(spider_name))
+        # print('spider_name: {}'.format(spider_name))
         start_requests = True
         request = {
             'meta': copy.deepcopy(api_params),
@@ -263,7 +275,10 @@ class CrawlResource(ServiceResource):
     def run_crawl(self, spider_name, scrapy_request_args,
                   max_requests=None, start_requests=False, *args, **kwargs):
         crawl_manager_cls = load_object(settings.CRAWL_MANAGER)
-        manager = crawl_manager_cls(spider_name, scrapy_request_args, max_requests, start_requests=start_requests)
+        manager = crawl_manager_cls(spider_name,
+                                    scrapy_request_args,
+                                    max_requests,
+                                    start_requests=start_requests)
         kwargs.update(scrapy_request_args.get('meta'))
         dfd = manager.crawl(*args, **kwargs)
         return dfd
