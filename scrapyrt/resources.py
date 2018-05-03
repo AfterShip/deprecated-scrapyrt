@@ -146,14 +146,14 @@ class CrawlResource(ServiceResource):
         At the moment kwargs for scrapy request are not supported in GET.
         They are supported in POST handler.
         """
-        api_params = dict(
-            (name.decode('utf-8'), value[0].decode('utf-8'))
-            for name, value in request.args.items()
-        )
-        scrapy_request_args = extract_scrapy_request_args(api_params,
-                                                          raise_error=False)
-        self.validate_options(scrapy_request_args, api_params)
-        return self.prepare_crawl(api_params, scrapy_request_args, **kwargs)
+        request.setResponseCode(200)
+        response = {
+            "meta": {
+                "message": "OK",
+                "code": 200
+            }
+        }
+        return response
 
     def render_POST(self, request, **kwargs):
         """
