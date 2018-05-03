@@ -38,7 +38,7 @@ class AfterShipErrorPage(resource.Resource):
         api_params = demjson.decode(request_body)
 
         result = {
-            "status": {
+            "meta": {
                 "message": self.brief,
                 "code": self.code
             },
@@ -66,12 +66,12 @@ def processingFailed(self, reason):
         """
         if self.site.displayTracebacks:
             result = {
-                'status': {
+                'meta': {
                     "message": "Internal Error",
                     "code": 500
                 },
                 'data': {
-                    "meta": {
+                    "code": {
                         'message': str(reason),
                         'code': 500
                     }
@@ -79,12 +79,12 @@ def processingFailed(self, reason):
             }
         else:
             result = {
-                'status': {
+                'meta': {
                     "message": "Internal Error",
                     "code": 500
                 },
                 'data': {
-                    "meta": {
+                    "status": {
                         'message': 'Processing Failed',
                         'code': 500
                     }

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+import json
 import copy
 import demjson
 from scrapy.utils.misc import load_object
@@ -12,7 +14,10 @@ from . import log
 from .conf import settings
 from .utils import extract_scrapy_request_args, to_bytes
 from jsonschema import validate
-from .requestschema import schema
+
+requestschema_path = os.getenv('REQUESTSCHEMA_PATH', "../settings/schemas/request_schema.json")
+with open(requestschema_path) as f:
+    schema = json.load(f)
 
 
 # XXX super() calls won't work wihout object mixin in Python 2
@@ -87,7 +92,7 @@ class ServiceResource(resource.Resource, object):
         if request.code == 500:
             msg = 'Internal error'
         return {
-            "status": {
+            "meta": {
                 "message": msg,
                 "code": request.code
             },
@@ -266,11 +271,10 @@ class CrawlResource(ServiceResource):
     def prepare_response(self, result, *args, **kwargs):
         items = result.get("items")
         response = {
-            "status": {
+            "meta": {
                 "message": "OK",
                 "code": 200
             },
-            "slug": self.slug,
             "data": {
                 "trackings": items
             }
