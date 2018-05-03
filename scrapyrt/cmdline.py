@@ -37,9 +37,12 @@ class AfterShipErrorPage(resource.Resource):
         request_body = request.content.getvalue()
         api_params = demjson.decode(request_body)
 
+        if self.code == 404:
+            message = "Not found"
+
         result = {
             "meta": {
-                "message": self.brief,
+                "message": message,
                 "code": self.code
             },
             "data": api_params
@@ -51,8 +54,8 @@ class AfterShipErrorPage(resource.Resource):
 
 
 class AfterShipNoResource(AfterShipErrorPage):
-    def __init__(self, message="Not Found"):
-        AfterShipErrorPage.__init__(self, 404, "Not Found", "Not Found Not Found")
+    def __init__(self, message):
+        AfterShipErrorPage.__init__(self, 404, message, message)
 
 
 def processingFailed(self, reason):
