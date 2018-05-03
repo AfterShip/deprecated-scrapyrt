@@ -7,9 +7,8 @@ from . import settings
 def get_scrapyrt_settings(log_file=None):
     spider_settings = {
         "LOG_LEVEL": "DEBUG",
-        "LOG_ENABLED": bool(log_file),
-        "LOG_FILE": log_file,
-        "LOG_STDOUT": False,
+        "LOG_ENABLED": True,
+        "LOG_STDOUT": True,
         "EXTENSIONS": {
             'scrapy.extensions.logstats.LogStats': None,
             'scrapy.webservice.WebService': None,

@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+import demjson
 from logging.config import dictConfig
 
 from scrapy.settings import Settings
@@ -19,6 +20,18 @@ WARNING = logging.WARNING
 ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 SILENT = CRITICAL + 1
+
+
+class StackdriverFormatter(logging.Formatter):
+    def __init__(self, *args, **kwargs):
+        super(StackdriverFormatter, self).__init__(*args, **kwargs)
+
+    def format(self, record):
+        return demjson.encode({
+            'severity': record.levelname,
+            'message': record.getMessage(),
+            'name': record.name
+        })
 
 
 def msg(message=None, **kwargs):
@@ -143,10 +156,7 @@ def setup_spider_logging(spider, settings):
         handler = logging.StreamHandler()
     else:
         handler = logging.NullHandler()
-    formatter = logging.Formatter(
-        fmt=settings.get('LOG_FORMAT'),
-        datefmt=settings.get('LOG_DATEFORMAT')
-    )
+    formatter = StackdriverFormatter()
     handler.setFormatter(formatter)
     handler.setLevel(settings.get('LOG_LEVEL'))
     filters = [
