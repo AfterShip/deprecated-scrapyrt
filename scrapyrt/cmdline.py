@@ -35,7 +35,10 @@ class AfterShipErrorPage(resource.Resource):
     def render(self, request):
         request.setResponseCode(self.code)
         request_body = request.content.getvalue()
-        api_params = demjson.decode(request_body)
+        try:
+            api_params = demjson.decode(request_body)
+        except demjson.JSONDecodeError:
+            api_params = {}
 
         if self.code == 404:
             message = "Not found"
@@ -74,7 +77,7 @@ def processingFailed(self, reason):
                     "code": 500
                 },
                 'data': {
-                    "code": {
+                    "status": {
                         'message': str(reason),
                         'code': 500
                     }
