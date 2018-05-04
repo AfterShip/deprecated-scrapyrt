@@ -154,7 +154,8 @@ class CrawlResource(ServiceResource):
             "meta": {
                 "message": "OK",
                 "code": 200
-            }
+            },
+            "data": {}
         }
         return response
 
