@@ -91,7 +91,7 @@ class ServiceResource(resource.Resource, object):
             else:
                 request.setResponseCode(500)
             if request.code == 500:
-                log.err(failure)
+                log.logger.error(failure)
         return self.format_error_response(exception, request)
 
     def format_error_response(self, exception, request):
@@ -176,17 +176,26 @@ class CrawlResource(ServiceResource):
 
         """
         aftership_api_key = request.getHeader('aftership-api-key')
-        if aftership_api_key is None or aftership_api_key != AFTERSHIP_API_KEY:
-            raise Error('403', message='Invalid API key')
         request_body = request.content.getvalue()
+
+        if aftership_api_key is None or aftership_api_key != AFTERSHIP_API_KEY:
+            try:
+                api_params = demjson.decode(request_body)
+                log.logger.error(api_params)
+            except demjson.JSONDecodeError:
+                log.logger.error(request_body.decode('utf8'))
+            raise Error('403', message='Invalid API key')
+
         try:
             api_params = demjson.decode(request_body)
         except demjson.JSONDecodeError:
+            log.logger.error(request_body.decode('utf8'))
             raise Error('400', message='Invalid JSON')
 
-        log.msg("{}".format(api_params))
-
         self.valid_aftership_courier_api_params(api_params)
+
+        log.logger.info(api_params)
+
         self.slug = api_params.get('slug')
         api_params = self.wrap_aftership_courier_api(api_params)
 
@@ -210,6 +219,7 @@ class CrawlResource(ServiceResource):
         try:
             validate(api_params, REQUEST_SCHEMA)
         except ValidationError:
+            log.logger.error(api_params)
             raise Error('4001', "Invalid payload")
 
     def wrap_aftership_courier_api(self, api_params):
