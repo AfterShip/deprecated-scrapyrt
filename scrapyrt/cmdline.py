@@ -17,9 +17,9 @@ from twisted.internet import reactor
 from twisted.web.server import Site
 from twisted.web import resource
 
-from .log import setup_logging
+from .log import setup_logging, logger
 from .conf import settings
-from .utils import to_bytes
+from .utils import to_bytes, extract_api_params_from_request
 
 from twisted.python.compat import intToBytes
 from twisted.web.server import Request
@@ -34,11 +34,10 @@ class AfterShipErrorPage(resource.Resource):
 
     def render(self, request):
         request.setResponseCode(self.code)
-        request_body = request.content.getvalue()
-        try:
-            api_params = demjson.decode(request_body)
-        except demjson.JSONDecodeError:
-            api_params = {}
+
+        api_params = extract_api_params_from_request(request)
+
+        logger.info(api_params)
 
         if self.code == 404:
             message = "Not found"
@@ -50,6 +49,7 @@ class AfterShipErrorPage(resource.Resource):
             },
             "data": api_params
         }
+        logger.info(result)
         return to_bytes(json.dumps(result))
 
     def getChild(self, chnam, request):
