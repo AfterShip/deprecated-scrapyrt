@@ -12,6 +12,7 @@ from twisted.web.error import Error, UnsupportedMethod
 from . import log
 from .conf import settings
 from .utils import extract_scrapy_request_args, to_bytes
+from .utils import extract_api_params_from_request
 
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
@@ -99,11 +100,8 @@ class ServiceResource(resource.Resource, object):
         # Python exceptions don't have message attribute in Python 3+ anymore.
         # Twisted HTTP Error objects still have 'message' attribute even in 3+
         # and they fail on str(exception) call.
-        request_body = request.content.getvalue()
-        try:
-            api_params = demjson.decode(request_body)
-        except demjson.JSONDecodeError:
-            api_params = {}
+        api_params = extract_api_params_from_request(request)
+
         if hasattr(exception, 'message'):
             msg = exception.message
         else:
@@ -183,12 +181,7 @@ class CrawlResource(ServiceResource):
         api_key = request.getHeader('aftership-courier-api-key')
         content_type = request.getHeader('content-type')
 
-        request_body = request.content.getvalue()
-
-        try:
-            api_params = demjson.decode(request_body)
-        except demjson.JSONDecodeError:
-            api_params = request_body.decode('utf8')
+        api_params = extract_api_params_from_request(request)
 
         if api_key is None or api_key != AFTERSHIP_COURIER_API_KEY:
             log.logger.error(api_params)

@@ -1,9 +1,15 @@
 import inspect
-
-import sys
-
 import six
+import demjson
 from scrapy import Request
+
+
+def extract_api_params_from_request(request):
+    try:
+        api_params = demjson.decode(request.content.getvalue())
+    except demjson.JSONDecodeError:
+        api_params = {}
+    return api_params
 
 
 def extract_scrapy_request_args(dictionary, raise_error=False):
