@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import copy
 
 import demjson
 from scrapy.utils.misc import load_object
@@ -20,7 +19,7 @@ from jsonschema.exceptions import ValidationError
 
 REQUEST_SCHEMA = None
 request_schema_file = os.getenv('REQUEST_SCHEMA_FILE',
-                               "../settings/schemas/request_schema.json")
+                                "../settings/schemas/request_schema.json")
 
 if os.path.isfile(request_schema_file):
     with open(request_schema_file) as f:
@@ -32,6 +31,8 @@ if not AFTERSHIP_API_KEY:
 
 # XXX super() calls won't work wihout object mixin in Python 2
 # maybe this can be removed at some point?
+
+
 class ServiceResource(resource.Resource, object):
     json_encoder = ScrapyJSONEncoder()
 
@@ -177,79 +178,57 @@ class CrawlResource(ServiceResource):
             It may contain kwargs to scrapy request.
 
         """
-        aftership_api_key = request.getHeader('aftership-api-key')
-        request_body = request.content.getvalue()
-
-        if aftership_api_key is None or aftership_api_key != AFTERSHIP_API_KEY:
-            try:
-                api_params = demjson.decode(request_body)
-                log.logger.error(api_params)
-            except demjson.JSONDecodeError:
-                log.logger.error(request_body.decode('utf8'))
-            raise Error('403', message='Invalid API key')
-
+        api_key = request.getHeader('aftership-api-key')
         content_type = request.getHeader('content-type')
-        if not content_type or content_type != 'application/json':
-            log.logger.error(request_body.decode('utf8'))
-            raise Error('415', message='Unsupported media type')
+
+        request_body = request.content.getvalue()
 
         try:
             api_params = demjson.decode(request_body)
         except demjson.JSONDecodeError:
-            log.logger.error(request_body.decode('utf8'))
+            api_params = request_body.decode('utf8')
+
+        if api_key is None or api_key != AFTERSHIP_API_KEY:
+            log.logger.error(api_params)
+            raise Error('403', message='Invalid API key')
+
+        if content_type is None or content_type != 'application/json':
+            log.logger.error(api_params)
+            raise Error('415', message='Unsupported media type')
+
+        if isinstance(api_params, str):
+            log.logger.error(api_params)
             raise Error('400', message='Invalid JSON')
 
-        self.valid_aftership_courier_api_params(api_params)
-
-        log.logger.info(api_params)
-
-        self.slug = api_params.get('slug')
-        api_params = self.wrap_aftership_courier_api(api_params)
-
-        if api_params.get("start_requests"):
-            # start requests passed so 'request' argument is optional
-            _request = api_params.get("request", {})
-        else:
-            # no start_requests, 'request' is required
-            _request = self.get_required_argument(api_params, "request")
-        try:
-            scrapy_request_args = extract_scrapy_request_args(
-                _request, raise_error=True
-            )
-        except ValueError as e:
-            raise Error('400', str(e))
-
-        self.validate_options(scrapy_request_args, api_params)
-        return self.prepare_crawl(api_params, scrapy_request_args, **kwargs)
-
-    def valid_aftership_courier_api_params(self, api_params):
         try:
             validate(api_params, REQUEST_SCHEMA)
         except ValidationError:
             log.logger.error(api_params)
             raise Error('4001', "Invalid payload")
 
+        log.logger.info(api_params)
+
+        self.slug = api_params.get('slug')
+        api_params = self.wrap_aftership_courier_api(api_params)
+
+        scrapy_request_args = extract_scrapy_request_args(
+            api_params.get("request", {}), raise_error=True)
+
+        return self.prepare_crawl(api_params, scrapy_request_args, **kwargs)
+
     def wrap_aftership_courier_api(self, api_params):
         spider_name = api_params.get('slug') + 'spider'
         # print('spider_name: {}'.format(spider_name))
         start_requests = True
         request = {
-            'meta': copy.deepcopy(api_params),
+            'meta': api_params,
             'dont_filter': True
         }
-        aftership_api_params = {
+        return {
             'request': request,
             'start_requests': start_requests,
             'spider_name': spider_name
         }
-        return aftership_api_params
-
-    def validate_options(self, scrapy_request_args, api_params):
-        url = scrapy_request_args.get("url")
-        start_requests = api_params.get("start_requests")
-        if not url and not start_requests:
-            raise Error('400',
-                        "'url' is required if start_requests are disabled")
 
     def get_required_argument(self, api_params, name, error_msg=None):
         """Get required API key from dict-like object.
@@ -285,12 +264,9 @@ class CrawlResource(ServiceResource):
         """
         spider_name = self.get_required_argument(api_params, 'spider_name')
         start_requests = api_params.get("start_requests", False)
-        try:
-            max_requests = api_params['max_requests']
-        except (KeyError, IndexError):
-            max_requests = None
+
         dfd = self.run_crawl(
-            spider_name, scrapy_request_args, max_requests,
+            spider_name, scrapy_request_args, max_requests=None,
             start_requests=start_requests, *args, **kwargs)
         dfd.addCallback(
             self.prepare_response, request_data=api_params, *args, **kwargs)
