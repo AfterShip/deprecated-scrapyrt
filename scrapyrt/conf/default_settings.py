@@ -28,6 +28,6 @@ RESOURCES = {
 CRAWL_MANAGER = 'scrapyrt.core.CrawlManager'
 
 # Limit spider run time
-TIMEOUT_LIMIT = 5000
+TIMEOUT_LIMIT = 30000
 # disable in production
 DEBUG = True
