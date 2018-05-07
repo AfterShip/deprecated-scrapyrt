@@ -107,7 +107,9 @@ class ServiceResource(resource.Resource, object):
             msg = exception.message
         else:
             msg = str(exception)
-        if request.code == 500:
+        if request.code == 415:
+            api_params = {}
+        elif request.code == 500:
             msg = 'Internal error'
         return {
             "meta": {
@@ -185,6 +187,11 @@ class CrawlResource(ServiceResource):
             except demjson.JSONDecodeError:
                 log.logger.error(request_body.decode('utf8'))
             raise Error('403', message='Invalid API key')
+
+        content_type = request.getHeader('content-type')
+        if not content_type or content_type != 'application/json':
+            log.logger.error(request_body.decode('utf8'))
+            raise Error('415', message='Unsupported media type')
 
         try:
             api_params = demjson.decode(request_body)
