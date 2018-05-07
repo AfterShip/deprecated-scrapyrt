@@ -112,13 +112,15 @@ class ServiceResource(resource.Resource, object):
             api_params = {}
         elif request.code == 500:
             msg = 'Internal error'
-        return {
+        result = {
             "meta": {
                 "message": msg,
                 "code": int(exception.status)
             },
             "data": api_params
         }
+        log.logger.error(result)
+        return result
 
     def render_object(self, obj, request):
         r = self.json_encoder.encode(obj) + "\n"

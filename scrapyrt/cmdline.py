@@ -17,7 +17,7 @@ from twisted.internet import reactor
 from twisted.web.server import Site
 from twisted.web import resource
 
-from .log import setup_logging
+from .log import setup_logging, logger
 from .conf import settings
 from .utils import to_bytes
 
@@ -40,6 +40,8 @@ class AfterShipErrorPage(resource.Resource):
         except demjson.JSONDecodeError:
             api_params = {}
 
+        logger.info(api_params)
+
         if self.code == 404:
             message = "Not found"
 
@@ -50,6 +52,7 @@ class AfterShipErrorPage(resource.Resource):
             },
             "data": api_params
         }
+        logger.info(result)
         return to_bytes(json.dumps(result))
 
     def getChild(self, chnam, request):
