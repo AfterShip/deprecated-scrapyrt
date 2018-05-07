@@ -86,7 +86,7 @@ class ServiceResource(resource.Resource, object):
                 request.setResponseCode(405)
             elif isinstance(exception, Error):
                 code = int(exception.status)
-                if code == 4001:
+                if code == 4001 or code == 4002:
                     code = 400
                 request.setResponseCode(code)
             else:

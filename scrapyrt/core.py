@@ -159,7 +159,7 @@ class CrawlManager(object):
             dfd = self.crawler_process.crawl(self.spider_name, *args, **kwargs)
         except KeyError as e:
             # Spider not found.
-            raise Error('404', message=str(e))
+            raise Error('4002', message="Invalid slug")
         dfd.addCallback(self.return_items)
         return dfd
 
