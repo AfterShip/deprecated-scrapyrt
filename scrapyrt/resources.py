@@ -25,9 +25,9 @@ if os.path.isfile(request_schema_file):
     with open(request_schema_file) as f:
         REQUEST_SCHEMA = demjson.decode(f.read())
 
-AFTERSHIP_API_KEY = os.getenv("AFTERSHIP_API_KEY")
-if not AFTERSHIP_API_KEY:
-    raise KeyError('should set env var AFTERSHIP_API_KEY')
+AFTERSHIP_COURIER_API_KEY = os.getenv("AFTERSHIP_COURIER_API_KEY")
+if AFTERSHIP_COURIER_API_KEY is None:
+    raise KeyError('should set env var `AFTERSHIP_COURIER_API_KEY`')
 
 # XXX super() calls won't work wihout object mixin in Python 2
 # maybe this can be removed at some point?
@@ -178,7 +178,7 @@ class CrawlResource(ServiceResource):
             It may contain kwargs to scrapy request.
 
         """
-        api_key = request.getHeader('aftership-api-key')
+        api_key = request.getHeader('aftership-courier-api-key')
         content_type = request.getHeader('content-type')
 
         request_body = request.content.getvalue()
@@ -188,7 +188,7 @@ class CrawlResource(ServiceResource):
         except demjson.JSONDecodeError:
             api_params = request_body.decode('utf8')
 
-        if api_key is None or api_key != AFTERSHIP_API_KEY:
+        if api_key is None or api_key != AFTERSHIP_COURIER_API_KEY:
             log.logger.error(api_params)
             raise Error('403', message='Invalid API key')
 
