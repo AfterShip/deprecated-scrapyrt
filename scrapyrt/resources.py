@@ -292,5 +292,5 @@ class CrawlResource(ServiceResource):
 
         errors = result.get("errors")
         if errors:
-            response["errors"] = errors
+            raise Error('500', 'Internal error')
         return response
