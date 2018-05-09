@@ -92,6 +92,8 @@ class ServiceResource(resource.Resource, object):
                 request.setResponseCode(code)
             else:
                 request.setResponseCode(500)
+                if not hasattr(exception, 'status'):
+                    setattr(exception, 'status', '500')
             if request.code == 500:
                 log.logger.error(failure)
         return self.format_error_response(exception, request)
