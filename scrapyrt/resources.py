@@ -112,6 +112,8 @@ class ServiceResource(resource.Resource, object):
             api_params = {}
         elif request.code == 500:
             msg = 'Internal error'
+        if exception.status == '400':
+            api_params = {}
         result = {
             "meta": {
                 "message": msg,
