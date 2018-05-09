@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+import demjson
 from logging.config import dictConfig
 
 from scrapy.settings import Settings
@@ -20,20 +21,36 @@ ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 SILENT = CRITICAL + 1
 
+LEVELS = (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
-def msg(message=None, **kwargs):
-    kwargs['logLevel'] = kwargs.pop('level', INFO)
-    kwargs.setdefault('system', 'scrapyrt')
-    if message is None:
-        log.msg(**kwargs)
+
+class StackdriverFormatter(logging.Formatter):
+    def __init__(self, *args, **kwargs):
+        super(StackdriverFormatter, self).__init__(*args, **kwargs)
+
+    def format(self, record):
+        return demjson.encode({
+            'severity': record.levelname,
+            'message': record.getMessage(),
+            'name': record.name
+        })
+
+
+def get_logger(name='scrapyrt', level=None):
+    logger = logging.getLogger(name)
+    if level and level in LEVELS:
+        level_name = logging.getLevelName(level)
     else:
-        log.msg(message, **kwargs)
+        level_name = logging.getLevelName(DEBUG)
+    logger.setLevel(level_name)
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = StackdriverFormatter()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
 
 
-def err(_stuff=None, _why=None, **kwargs):
-    kwargs['logLevel'] = kwargs.pop('level', ERROR)
-    kwargs.setdefault('system', 'scrapyrt')
-    log.err(_stuff, _why, **kwargs)
+logger = get_logger()
 
 
 class ScrapyrtFileLogObserver(log.FileLogObserver):
@@ -91,15 +108,7 @@ class SpiderFilter(logging.Filter):
 
 
 def setup_logging():
-    if not os.path.exists(scrapyrt_settings.LOG_DIR):
-        os.makedirs(scrapyrt_settings.LOG_DIR)
-    if scrapyrt_settings.LOG_FILE:
-        logfile = DailyLogFile.fromFullPath(
-            os.path.join(scrapyrt_settings.LOG_DIR,
-                         scrapyrt_settings.LOG_FILE)
-        )
-    else:
-        logfile = sys.stderr
+    logfile = sys.stdout
     observer = ScrapyrtFileLogObserver(logfile, scrapyrt_settings.LOG_ENCODING)
     startLoggingWithObserver(observer.emit, setStdout=False)
 
@@ -132,21 +141,8 @@ def setup_spider_logging(spider, settings):
     if isinstance(settings, dict):
         settings = Settings(settings)
 
-    # Looging stdout is a bad idea when mutiple crawls are running
-    # if settings.getbool('LOG_STDOUT'):
-    #     sys.stdout = StreamLogger(logging.getLogger('stdout'))
-    filename = settings.get('LOG_FILE')
-    if filename:
-        encoding = settings.get('LOG_ENCODING')
-        handler = logging.FileHandler(filename, encoding=encoding)
-    elif settings.getbool('LOG_ENABLED'):
-        handler = logging.StreamHandler()
-    else:
-        handler = logging.NullHandler()
-    formatter = logging.Formatter(
-        fmt=settings.get('LOG_FORMAT'),
-        datefmt=settings.get('LOG_DATEFORMAT')
-    )
+    handler = logging.StreamHandler()
+    formatter = StackdriverFormatter()
     handler.setFormatter(formatter)
     handler.setLevel(settings.get('LOG_LEVEL'))
     filters = [
@@ -168,6 +164,6 @@ def setup_spider_logging(spider, settings):
             try:
                 func()
             except Exception as e:
-                err(e)
+                logger.error(e)
 
     return cleanup

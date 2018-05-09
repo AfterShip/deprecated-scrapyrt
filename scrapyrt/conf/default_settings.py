@@ -21,12 +21,13 @@ SERVICE_ROOT = 'scrapyrt.resources.RealtimeApi'
 
 # Resources list
 RESOURCES = {
-    'crawl.json': 'scrapyrt.resources.CrawlResource',
+    #  'crawl.json': 'scrapyrt.resources.CrawlResource',
+    'trackings': 'scrapyrt.resources.CrawlResource',
 }
 
 CRAWL_MANAGER = 'scrapyrt.core.CrawlManager'
 
 # Limit spider run time
-TIMEOUT_LIMIT = 1000
+TIMEOUT_LIMIT = 30000
 # disable in production
 DEBUG = True

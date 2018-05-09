@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+
 import demjson
 from scrapy.utils.misc import load_object
 from scrapy.utils.serialize import ScrapyJSONEncoder
@@ -10,10 +12,28 @@ from twisted.web.error import Error, UnsupportedMethod
 from . import log
 from .conf import settings
 from .utils import extract_scrapy_request_args, to_bytes
+from .utils import extract_api_params_from_request
 
+from jsonschema import validate
+from jsonschema.exceptions import ValidationError
+
+
+REQUEST_SCHEMA = None
+request_schema_file = os.getenv('REQUEST_SCHEMA_FILE',
+                                "../settings/schemas/request_schema.json")
+
+if os.path.isfile(request_schema_file):
+    with open(request_schema_file) as f:
+        REQUEST_SCHEMA = demjson.decode(f.read())
+
+AFTERSHIP_COURIER_API_KEY = os.getenv("AFTERSHIP_COURIER_API_KEY")
+if AFTERSHIP_COURIER_API_KEY is None:
+    raise KeyError('should set env var `AFTERSHIP_COURIER_API_KEY`')
 
 # XXX super() calls won't work wihout object mixin in Python 2
 # maybe this can be removed at some point?
+
+
 class ServiceResource(resource.Resource, object):
     json_encoder = ScrapyJSONEncoder()
 
@@ -67,23 +87,38 @@ class ServiceResource(resource.Resource, object):
                 request.setResponseCode(405)
             elif isinstance(exception, Error):
                 code = int(exception.status)
+                if code == 4001 or code == 4002:
+                    code = 400
                 request.setResponseCode(code)
             else:
                 request.setResponseCode(500)
             if request.code == 500:
-                log.err(failure)
+                log.logger.error(failure)
         return self.format_error_response(exception, request)
 
     def format_error_response(self, exception, request):
         # Python exceptions don't have message attribute in Python 3+ anymore.
         # Twisted HTTP Error objects still have 'message' attribute even in 3+
         # and they fail on str(exception) call.
-        msg = exception.message if hasattr(exception, 'message') else str(exception)
-        return {
-            "status": "error",
-            "message": msg,
-            "code": request.code
+        api_params = extract_api_params_from_request(request)
+
+        if hasattr(exception, 'message'):
+            msg = exception.message
+        else:
+            msg = str(exception)
+        if request.code == 415:
+            api_params = {}
+        elif request.code == 500:
+            msg = 'Internal error'
+        result = {
+            "meta": {
+                "message": msg,
+                "code": int(exception.status)
+            },
+            "data": api_params
         }
+        log.logger.error(result)
+        return result
 
     def render_object(self, obj, request):
         r = self.json_encoder.encode(obj) + "\n"
@@ -117,14 +152,15 @@ class CrawlResource(ServiceResource):
         At the moment kwargs for scrapy request are not supported in GET.
         They are supported in POST handler.
         """
-        api_params = dict(
-            (name.decode('utf-8'), value[0].decode('utf-8'))
-            for name, value in request.args.items()
-        )
-        scrapy_request_args = extract_scrapy_request_args(api_params,
-                                                          raise_error=False)
-        self.validate_options(scrapy_request_args, api_params)
-        return self.prepare_crawl(api_params, scrapy_request_args, **kwargs)
+        request.setResponseCode(200)
+        response = {
+            "meta": {
+                "message": "OK",
+                "code": 200
+            },
+            "data": {}
+        }
+        return response
 
     def render_POST(self, request, **kwargs):
         """
@@ -142,37 +178,52 @@ class CrawlResource(ServiceResource):
             It may contain kwargs to scrapy request.
 
         """
-        request_body = request.content.getvalue()
-        try:
-            api_params = demjson.decode(request_body)
-        except demjson.JSONDecodeError as e:
-            message = "Invalid JSON in POST body. {}"
-            message = message.format(e.pretty_description())
-            raise Error('400', message=message)
+        api_key = request.getHeader('aftership-courier-api-key')
+        content_type = request.getHeader('content-type')
 
-        log.msg("{}".format(api_params))
-        if api_params.get("start_requests"):
-            # start requests passed so 'request' argument is optional
-            _request = api_params.get("request", {})
-        else:
-            # no start_requests, 'request' is required
-            _request = self.get_required_argument(api_params, "request")
-        try:
-            scrapy_request_args = extract_scrapy_request_args(
-                _request, raise_error=True
-            )
-        except ValueError as e:
-            raise Error('400', str(e))
+        api_params = extract_api_params_from_request(request)
 
-        self.validate_options(scrapy_request_args, api_params)
+        if api_key is None or api_key != AFTERSHIP_COURIER_API_KEY:
+            log.logger.error(api_params)
+            raise Error('403', message='Invalid API key')
+
+        if content_type is None or content_type != 'application/json':
+            log.logger.error(api_params)
+            raise Error('415', message='Unsupported media type')
+
+        if isinstance(api_params, str):
+            log.logger.error(api_params)
+            raise Error('400', message='Invalid JSON')
+
+        try:
+            validate(api_params, REQUEST_SCHEMA)
+        except ValidationError:
+            log.logger.error(api_params)
+            raise Error('4001', "Invalid payload")
+
+        log.logger.info(api_params)
+
+        self.slug = api_params.get('slug')
+        api_params = self.wrap_aftership_courier_api(api_params)
+
+        scrapy_request_args = extract_scrapy_request_args(
+            api_params.get("request", {}), raise_error=True)
+
         return self.prepare_crawl(api_params, scrapy_request_args, **kwargs)
 
-    def validate_options(self, scrapy_request_args, api_params):
-        url = scrapy_request_args.get("url")
-        start_requests = api_params.get("start_requests")
-        if not url and not start_requests:
-            raise Error('400',
-                        "'url' is required if start_requests are disabled")
+    def wrap_aftership_courier_api(self, api_params):
+        spider_name = api_params.get('slug') + 'spider'
+        # print('spider_name: {}'.format(spider_name))
+        start_requests = True
+        request = {
+            'meta': api_params,
+            'dont_filter': True
+        }
+        return {
+            'request': request,
+            'start_requests': start_requests,
+            'spider_name': spider_name
+        }
 
     def get_required_argument(self, api_params, name, error_msg=None):
         """Get required API key from dict-like object.
@@ -208,12 +259,9 @@ class CrawlResource(ServiceResource):
         """
         spider_name = self.get_required_argument(api_params, 'spider_name')
         start_requests = api_params.get("start_requests", False)
-        try:
-            max_requests = api_params['max_requests']
-        except (KeyError, IndexError):
-            max_requests = None
+
         dfd = self.run_crawl(
-            spider_name, scrapy_request_args, max_requests,
+            spider_name, scrapy_request_args, max_requests=None,
             start_requests=start_requests, *args, **kwargs)
         dfd.addCallback(
             self.prepare_response, request_data=api_params, *args, **kwargs)
@@ -222,20 +270,27 @@ class CrawlResource(ServiceResource):
     def run_crawl(self, spider_name, scrapy_request_args,
                   max_requests=None, start_requests=False, *args, **kwargs):
         crawl_manager_cls = load_object(settings.CRAWL_MANAGER)
-        manager = crawl_manager_cls(spider_name, scrapy_request_args, max_requests, start_requests=start_requests)
+        manager = crawl_manager_cls(spider_name,
+                                    scrapy_request_args,
+                                    max_requests,
+                                    start_requests=start_requests)
+        kwargs.update(scrapy_request_args.get('meta'))
         dfd = manager.crawl(*args, **kwargs)
         return dfd
 
     def prepare_response(self, result, *args, **kwargs):
         items = result.get("items")
         response = {
-            "status": "ok",
-            "items": items,
-            "items_dropped": result.get("items_dropped", []),
-            "stats": result.get("stats"),
-            "spider_name": result.get("spider_name"),
+            "meta": {
+                "message": "OK",
+                "code": 200
+            },
+            "data": {
+                "trackings": items
+            }
         }
+
         errors = result.get("errors")
         if errors:
-            response["errors"] = errors
+            raise Error('500', 'Internal error')
         return response

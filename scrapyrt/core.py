@@ -159,22 +159,22 @@ class CrawlManager(object):
             dfd = self.crawler_process.crawl(self.spider_name, *args, **kwargs)
         except KeyError as e:
             # Spider not found.
-            raise Error('404', message=str(e))
+            raise Error('4002', message="Invalid slug")
         dfd.addCallback(self.return_items)
         return dfd
 
-    def _get_log_file_path(self):
-        log_dir = os.path.join(self.log_dir, self.spider_name)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        time_format = settings.SPIDER_LOG_FILE_TIMEFORMAT
-        filename = datetime.datetime.now().strftime(time_format) + '.log'
-        return os.path.join(log_dir, filename)
+    # def _get_log_file_path(self):
+    #     log_dir = os.path.join(self.log_dir, self.spider_name)
+    #     if not os.path.exists(log_dir):
+    #         os.makedirs(log_dir)
+    #     time_format = settings.SPIDER_LOG_FILE_TIMEFORMAT
+    #     filename = datetime.datetime.now().strftime(time_format) + '.log'
+    #     return os.path.join(log_dir, filename)
 
     def get_project_settings(self):
         # set logfile for a job
-        log_file = self._get_log_file_path()
-        custom_settings = get_scrapyrt_settings(log_file=log_file)
+        # log_file = self._get_log_file_path()
+        custom_settings = get_scrapyrt_settings(log_file=None)
         return get_project_settings(custom_settings=custom_settings)
 
     @deprecated(use_instead='.crawl()')
@@ -274,5 +274,5 @@ class CrawlManager(object):
         req.dont_filter = True
         msg = u"Created request for spider {} with url {} and kwargs {}"
         msg = msg.format(self.spider_name, url, repr(kwargs))
-        log.msg(msg)
+        log.logger.info(msg)
         return req
