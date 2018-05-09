@@ -6,9 +6,10 @@ from scrapy import Request
 
 def extract_api_params_from_request(request):
     try:
-        api_params = demjson.decode(request.content.getvalue())
+        body = request.content.getvalue()
+        api_params = demjson.decode(body)
     except demjson.JSONDecodeError:
-        api_params = {}
+        api_params = body.decode('utf8')
     return api_params
 
 
