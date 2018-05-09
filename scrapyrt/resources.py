@@ -92,6 +92,8 @@ class ServiceResource(resource.Resource, object):
                 request.setResponseCode(code)
             else:
                 request.setResponseCode(500)
+                if not hasattr(exception, 'status'):
+                    setattr(exception, 'status', '500')
             if request.code == 500:
                 log.logger.error(failure)
         return self.format_error_response(exception, request)
@@ -110,6 +112,8 @@ class ServiceResource(resource.Resource, object):
             api_params = {}
         elif request.code == 500:
             msg = 'Internal error'
+        if exception.status == '400':
+            api_params = {}
         result = {
             "meta": {
                 "message": msg,

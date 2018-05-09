@@ -98,7 +98,7 @@ def processingFailed(self, reason):
             }
         body = to_bytes(json.dumps(result))
         self.setResponseCode(500)
-        self.setHeader(b'content-type', b"text/html")
+        self.setHeader(b'content-type', b"application/json")
         self.setHeader(b'content-length', intToBytes(len(body)))
         self.write(body)
         self.finish()
