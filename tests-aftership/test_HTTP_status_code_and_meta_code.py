@@ -2,6 +2,7 @@
 # jsonschema2.6.0 Full support for Draft 3 and Draft 4 of the schema.
 # Created by Jiapei Chen on 2018-05-11
 
+import json
 import unittest
 import requests
 
@@ -11,6 +12,8 @@ import requests
 Including meta code 200, 400, 4001, 4002, 403, 404, 413, 415, 500
 Meta code 429 is not tested.
 '''
+
+
 class TestYunexpress(unittest.TestCase):
 
     def setUp(self):
@@ -33,6 +36,19 @@ class TestYunexpress(unittest.TestCase):
     def test_health_check(self):
         resp = requests.get(self.url)
         self.assertEqual(resp.status_code, 200)
+
+    # successful request
+    def test_meta_code_200(self):
+        # everything is ok, set tracking_number to 'TEST_HTTP_200' to start
+        self.data = json.loads(self.data)
+        self.data['tracking_queries'][0]['tracking_number'] = 'TEST_HTTP_200'
+        resp = requests.post(url=self.url,
+                             data=json.dumps(self.data, ensure_ascii=False),
+                             headers=self.headers)
+        resp_json = resp.json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_json['meta']['code'], 200)
+        self.assertEqual(resp_json['meta']['message'], 'OK')
 
     # invalid request JSON
     def test_meta_code_400(self):
@@ -80,7 +96,7 @@ class TestYunexpress(unittest.TestCase):
         # 'yunexpress' with missing 'ss'
         self.data = '''
         {
-            "slug": "aftership",
+            "slug": "aftership-xxx",
             "tracking_queries": [
                 {
                     "tracking_number": "YT1802927571800445"
@@ -160,7 +176,21 @@ class TestYunexpress(unittest.TestCase):
         resp_json = resp.json()
         self.assertEqual(resp.status_code, 415)
         self.assertEqual(resp_json['meta']['code'], 415)
-        self.assertEqual(resp_json['meta']['message'], "Unsupported media type")
+        self.assertEqual(resp_json['meta']['message'],
+                         "Unsupported media type")
+
+    # internal error
+    def test_meta_code_500(self):
+        # will raise exception, set tracking_number to 'TEST_HTTP_500' to start
+        self.data = json.loads(self.data)
+        self.data['tracking_queries'][0]['tracking_number'] = 'TEST_HTTP_500'
+        resp = requests.post(url=self.url,
+                             data=json.dumps(self.data, ensure_ascii=False),
+                             headers=self.headers)
+        resp_json = resp.json()
+        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(resp_json['meta']['code'], 500)
+        self.assertEqual(resp_json['meta']['message'], 'Internal error')
 
     def tearDown(self):
         pass
