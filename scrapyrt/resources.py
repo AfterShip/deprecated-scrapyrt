@@ -187,6 +187,9 @@ class CrawlResource(ServiceResource):
 
         api_params = extract_api_params_from_request(request)
 
+        if api_params is None:
+            raise Error('413', 'Payload too large')
+
         if api_key is None or api_key != AFTERSHIP_COURIER_API_KEY:
             log.logger.error(api_params)
             raise Error('403', message='Invalid API key')

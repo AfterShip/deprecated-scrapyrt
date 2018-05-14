@@ -23,6 +23,8 @@ def extract_api_params_from_request(request):
         api_params = demjson.decode(body)
     except demjson.JSONDecodeError:
         api_params = body.decode('utf8')
+    except AttributeError:
+        api_params = None
     return api_params
 
 
