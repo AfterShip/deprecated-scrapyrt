@@ -13,6 +13,7 @@ from . import log
 from .conf import settings
 from .utils import extract_scrapy_request_args, to_bytes
 from .utils import extract_api_params_from_request
+from .utils import extract_api_headers
 
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
@@ -184,31 +185,34 @@ class CrawlResource(ServiceResource):
         """
         api_key = request.getHeader('aftership-courier-api-key')
         content_type = request.getHeader('content-type')
-
+        api_headers = extract_api_headers(request)
         api_params = extract_api_params_from_request(request)
 
+        log_msg = {'api_headers': api_headers, 'api_params': api_params}
+
         if api_params is None:
+            log.logger.error(log_msg)
             raise Error('413', 'Payload too large')
 
         if api_key is None or api_key != AFTERSHIP_COURIER_API_KEY:
-            log.logger.error(api_params)
+            log.logger.error(log_msg)
             raise Error('403', message='Invalid API key')
 
         if content_type is None or content_type != 'application/json':
-            log.logger.error(api_params)
+            log.logger.error(log_msg)
             raise Error('415', message='Unsupported media type')
 
         if isinstance(api_params, str):
-            log.logger.error(api_params)
+            log.logger.error(log_msg)
             raise Error('400', message='Invalid JSON')
 
         try:
             validate(api_params, REQUEST_SCHEMA)
         except ValidationError:
-            log.logger.error(api_params)
+            log.logger.error(log_msg)
             raise Error('4001', "Invalid payload")
 
-        log.logger.info(api_params)
+        log.logger.info(log_msg)
 
         self.slug = api_params.get('slug')
         api_params = self.wrap_aftership_courier_api(api_params)
