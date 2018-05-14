@@ -4,12 +4,36 @@ import demjson
 from scrapy import Request
 
 
+def bytes_to(length, unit, bsize=1024):
+    """
+    :param length: Length of the string in bytes
+    :param unit: Target unit to convert length to
+    :param bsize: Times to divide from one previous unit to the next
+    :return length: Length converted to the target unit
+    """
+    r = float(length)
+    for i in range({'k': 1, 'm': 2, 'g': 3, 't': 4, 'p': 5, 'e': 6}[unit]):
+        r = r / bsize
+    return r
+
+
+def extract_api_headers(request):
+    headers = {}
+    _headers = request.getAllHeaders()
+    for k, v in _headers.items():
+        k, v = map(lambda i: i.decode('utf8'), [k, v])
+        headers.update({k: v})
+    return headers
+
+
 def extract_api_params_from_request(request):
     try:
         body = request.content.getvalue()
         api_params = demjson.decode(body)
     except demjson.JSONDecodeError:
         api_params = body.decode('utf8')
+    except AttributeError:
+        api_params = None
     return api_params
 
 

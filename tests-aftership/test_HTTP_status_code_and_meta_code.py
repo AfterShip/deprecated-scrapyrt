@@ -5,6 +5,7 @@
 import json
 import unittest
 import requests
+from scrapyrt.utils import bytes_to
 
 
 '''Test on all implemented HTTP status code
@@ -155,6 +156,24 @@ class TestYunexpress(unittest.TestCase):
 
     # payload too large
     def test_meta_code_413(self):
+        """
+            Currently this test will fail because twisted max payload size is
+            set to 99999, and so far no idea how to reset this in twisted.
+        """
+        max_kib_payload = 100  # max payload in MiB
+        self.data = json.loads(self.data)
+
+        # we will duplicate tracking_queries part in order to pass validation
+        # of request payload JSON schema
+        queries = self.data['tracking_queries']
+        # while tracking_queries is less than max_kib_payload, duplicate itself
+        while bytes_to(len(json.dumps(queries)), unit='k') < max_kib_payload:
+            queries = queries * 2
+
+        # assign the large enough queries to tracking_queries
+        self.data['tracking_queries'] = queries
+
+        self.data = json.dumps(self.data, ensure_ascii=False)
         resp = requests.post(url=self.url,
                              data=self.data,
                              headers=self.headers)
