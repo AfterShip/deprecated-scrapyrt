@@ -17,6 +17,15 @@ def bytes_to(length, unit, bsize=1024):
     return r
 
 
+def extract_api_headers(request):
+    headers = {}
+    _headers = request.getAllHeaders()
+    for k, v in _headers.items():
+        k, v = map(lambda i: i.decode('utf8'), [k, v])
+        headers.update({k: v})
+    return headers
+
+
 def extract_api_params_from_request(request):
     try:
         body = request.content.getvalue()
