@@ -6,7 +6,7 @@ There are 3 different test files: test\_aftership\_resource.py, test\_AfterShipE
 
 ## Install the dependency
 
-First, please install the pipenv by:
+First, please install denpendencies by pipenv:
 
 ```
 pipenv install -d
