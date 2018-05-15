@@ -33,3 +33,9 @@ testing_scripts*
 
 # sphinx
 docs/build/*
+
+# virtualenv
+.venv/
+
+# emacs temp files
+*~
