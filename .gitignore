@@ -29,6 +29,7 @@ testing_scripts*
 .coverage
 /.tox/
 /.cache/
+htmlcov
 
 
 # sphinx
