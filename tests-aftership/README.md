@@ -6,16 +6,10 @@ There are 3 different test files: test\_aftership\_resource.py, test\_AfterShipE
 
 ## Install the dependency
 
-First you may need to install the py.test module, it will make the result more beautiful and readable.
+First, please install the pipenv by:
 
 ```
-pip install pytest
-```
-
-Also, you need to install pytest-cov if you want to see the test coverage reports.
-
-```
-pip install pytest-cov
+pipenv install -d
 ```
 
 ## Run the tests
@@ -23,7 +17,7 @@ pip install pytest-cov
 After the install of the dependency, you can simply run all the test at root directory by:
 
 ```
-python -m py.test -v tests-aftership/
+pipenv run python -m py.test -v tests-aftership/
 ```
 
 you can also run single test by add single file name, 
@@ -31,7 +25,7 @@ you can also run single test by add single file name,
 e.g.:
 
 ```
-python -m py.test -v tests-aftership/test_aftership_resource.py
+pipenv run python -m py.test -v tests-aftership/test_aftership_resource.py
 ```
 
 ### Coverage Report
@@ -39,7 +33,7 @@ python -m py.test -v tests-aftership/test_aftership_resource.py
 If you want to see the coverage report of your code:
 
 ```
-python -m py.test --cov-report html --cov=..scrapyrt/ tests-aftership/
+pipenv run python -m py.test --cov-report html --cov=..scrapyrt/ tests-aftership/
 ```
 
 The report folder 'htmlcov' will automatically created under you root directory.
