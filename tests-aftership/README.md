@@ -17,7 +17,7 @@ pipenv install -d
 After the install of the dependency, you can simply run all the test at root directory by:
 
 ```
-pipenv run python -m py.test -v tests-aftership/
+pipenv run python -m pytest -v tests-aftership/
 ```
 
 you can also run single test by add single file name, 
@@ -25,7 +25,7 @@ you can also run single test by add single file name,
 e.g.:
 
 ```
-pipenv run python -m py.test -v tests-aftership/test_aftership_resource.py
+pipenv run python -m pytest -v tests-aftership/test_aftership_resource.py
 ```
 
 ### Coverage Report
@@ -33,7 +33,7 @@ pipenv run python -m py.test -v tests-aftership/test_aftership_resource.py
 If you want to see the coverage report of your code:
 
 ```
-pipenv run python -m py.test --cov-report html --cov=..scrapyrt/ tests-aftership/
+pipenv run python -m pytest --cov-report html --cov=..scrapyrt/ tests-aftership/
 ```
 
 The report folder 'htmlcov' will automatically created under you root directory.
